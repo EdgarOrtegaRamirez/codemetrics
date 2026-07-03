@@ -1,5 +1,5 @@
 # Binaries
-codemetrics
+/codemetrics
 *.exe
 *.exe~
 *.dll

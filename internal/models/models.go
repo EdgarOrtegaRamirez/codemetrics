@@ -106,3 +106,26 @@ func GetSeverity(cc int) Severity {
 		return SeverityCritical
 	}
 }
+
+// HotspotResult represents a hotspot function with its composite score
+type HotspotResult struct {
+	FilePath       string  `json:"file_path"`
+	FuncName       string  `json:"func_name"`
+	Line           int     `json:"line"`
+	Cyclomatic     int     `json:"cyclomatic_complexity"`
+	Cognitive      int     `json:"cognitive_complexity"`
+	NestingDepth   int     `json:"nesting_depth"`
+	LinesOfCode    int     `json:"lines_of_code"`
+	ParameterCount int     `json:"parameter_count"`
+	CompositeScore float64 `json:"composite_score"`
+}
+
+// HotspotReport holds the results of hotspot detection
+type HotspotReport struct {
+	RootPath    string          `json:"root_path"`
+	TotalFiles  int             `json:"total_files"`
+	TotalFuncs  int             `json:"total_functions"`
+	TopCount    int             `json:"top_count"`
+	Hotspots    []HotspotResult `json:"hotspots"`
+	GeneratedAt time.Time       `json:"generated_at"`
+}

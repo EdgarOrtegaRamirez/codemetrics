@@ -750,3 +750,183 @@ func TestReportOutputToFile(t *testing.T) {
 		t.Error("Output file should not be empty")
 	}
 }
+
+// TestFindHotspots tests hotspot detection
+func TestFindHotspots(t *testing.T) {
+	a := analyzer.New()
+	hr, err := a.FindHotspots(getFixturePath(""), 5)
+	if err != nil {
+		t.Fatalf("Failed to find hotspots: %v", err)
+	}
+
+	if hr == nil {
+		t.Fatal("Expected non-nil hotspot report")
+	}
+
+	if hr.TotalFiles == 0 {
+		t.Error("Expected at least one file in project")
+	}
+
+	if hr.TotalFuncs == 0 {
+		t.Error("Expected at least one function")
+	}
+
+	if len(hr.Hotspots) == 0 {
+		t.Error("Expected at least one hotspot")
+	}
+
+	if len(hr.Hotspots) > 5 {
+		t.Errorf("Expected at most 5 hotspots, got %d", len(hr.Hotspots))
+	}
+
+	if hr.RootPath == "" {
+		t.Error("RootPath should not be empty")
+	}
+
+	if hr.GeneratedAt.IsZero() {
+		t.Error("GeneratedAt should not be zero")
+	}
+
+	// Verify hotspots are sorted by score descending
+	for i := 1; i < len(hr.Hotspots); i++ {
+		if hr.Hotspots[i].CompositeScore > hr.Hotspots[i-1].CompositeScore {
+			t.Errorf("Hotspots not sorted by score descending: %f > %f",
+				hr.Hotspots[i].CompositeScore, hr.Hotspots[i-1].CompositeScore)
+		}
+	}
+
+	t.Logf("Hotspots: %d files, %d total funcs, %d top results", hr.TotalFiles, hr.TotalFuncs, len(hr.Hotspots))
+	for _, h := range hr.Hotspots {
+		t.Logf("  %s/%s: score=%.2f CC=%d Cog=%d Nest=%d Lines=%d",
+			h.FilePath, h.FuncName, h.CompositeScore, h.Cyclomatic, h.Cognitive, h.NestingDepth, h.LinesOfCode)
+	}
+}
+
+// TestFindHotspotsEmptyDir tests hotspots on an empty directory
+func TestFindHotspotsEmptyDir(t *testing.T) {
+	emptyDir := t.TempDir()
+	a := analyzer.New()
+	hr, err := a.FindHotspots(emptyDir, 10)
+	if err != nil {
+		t.Fatalf("Failed to find hotspots in empty dir: %v", err)
+	}
+
+	if hr == nil {
+		t.Fatal("Expected non-nil hotspot report")
+	}
+
+	if hr.TotalFiles != 0 {
+		t.Errorf("Expected 0 files in empty dir, got %d", hr.TotalFiles)
+	}
+
+	if hr.TotalFuncs != 0 {
+		t.Errorf("Expected 0 funcs in empty dir, got %d", hr.TotalFuncs)
+	}
+
+	if len(hr.Hotspots) != 0 {
+		t.Errorf("Expected 0 hotspots in empty dir, got %d", len(hr.Hotspots))
+	}
+}
+
+// TestHotspotCompositeScore tests the composite score computation
+func TestHotspotCompositeScore(t *testing.T) {
+	a := analyzer.New()
+	hr, err := a.FindHotspots(getFixturePath("python"), 10)
+	if err != nil {
+		t.Fatalf("Failed to find hotspots: %v", err)
+	}
+
+	if hr == nil || len(hr.Hotspots) == 0 {
+		t.Fatal("Expected at least one hotspot")
+	}
+
+	// Verify scores are in valid range
+	for _, h := range hr.Hotspots {
+		if h.CompositeScore < 0 {
+			t.Errorf("CompositeScore should not be negative, got %f", h.CompositeScore)
+		}
+		if h.FilePath == "" {
+			t.Error("Hotspot file path should not be empty")
+		}
+		if h.FuncName == "" {
+			t.Error("Hotspot func name should not be empty")
+		}
+	}
+}
+
+// TestHotspotReportFormats tests hotspot reporter output formats
+func TestHotspotReportFormats(t *testing.T) {
+	a := analyzer.New()
+	hr, err := a.FindHotspots(getFixturePath(""), 3)
+	if err != nil {
+		t.Fatalf("Failed to find hotspots: %v", err)
+	}
+
+	formats := []reporter.Format{
+		reporter.FormatText,
+		reporter.FormatJSON,
+		reporter.FormatMarkdown,
+	}
+
+	for _, format := range formats {
+		t.Run(string(format), func(t *testing.T) {
+			f, err := os.CreateTemp("", "hotspots-*")
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(f.Name())
+			defer f.Close()
+
+			r := reporter.New(f, format, false)
+			if err := r.WriteHotspots(hr); err != nil {
+				t.Errorf("Failed to write hotspots in %s format: %v", format, err)
+			}
+
+			info, _ := f.Stat()
+			if info.Size() == 0 {
+				t.Errorf("Hotspot report in %s format should not be empty", format)
+			}
+		})
+	}
+}
+
+// TestHotspotAllFunctions tests that all functions are ranked when topN > total
+func TestHotspotAllFunctions(t *testing.T) {
+	a := analyzer.New()
+	hr, err := a.FindHotspots(getFixturePath("python"), 999)
+	if err != nil {
+		t.Fatalf("Failed to find hotspots: %v", err)
+	}
+
+	if hr.TotalFuncs != len(hr.Hotspots) {
+		t.Errorf("Expected all functions when topN > total: %d total vs %d returned",
+			hr.TotalFuncs, len(hr.Hotspots))
+	}
+}
+
+// TestHotspotTopN tests that topN limits results correctly
+func TestHotspotTopN(t *testing.T) {
+	a := analyzer.New()
+
+	// Get all hotspots
+	allHr, _ := a.FindHotspots(getFixturePath("python"), 999)
+
+	// Request top 3
+	topHr, err := a.FindHotspots(getFixturePath("python"), 3)
+	if err != nil {
+		t.Fatalf("Failed to find top 3 hotspots: %v", err)
+	}
+
+	// If there are at least 3 functions, the top results should match
+	if allHr.TotalFuncs >= 3 {
+		if len(topHr.Hotspots) != 3 {
+			t.Errorf("Expected 3 hotspots for --top 3, got %d", len(topHr.Hotspots))
+		}
+
+		// Check the top score is the same as the top of all
+		if topHr.Hotspots[0].CompositeScore != allHr.Hotspots[0].CompositeScore {
+			t.Errorf("Top hotspot score should match: got %f, expected %f",
+				topHr.Hotspots[0].CompositeScore, allHr.Hotspots[0].CompositeScore)
+		}
+	}
+}

@@ -26,6 +26,8 @@ func main() {
 		cmdAnalyze(args)
 	case "violations":
 		cmdViolations(args)
+	case "hotspots":
+		cmdHotspots(args)
 	case "version":
 		fmt.Printf("codemetrics %s\n", version)
 	case "help", "--help", "-h":
@@ -46,6 +48,7 @@ Usage:
 Commands:
   analyze     Analyze code complexity for files or directories
   violations  Find functions exceeding complexity thresholds
+  hotspots    Find top N most complex functions (hotspots)
   version     Show version
   help        Show this help message
 
@@ -55,11 +58,18 @@ Analyze Options:
   --file, -o      Output to file instead of stdout
   --cc-threshold  Cyclomatic complexity threshold (default: 10)
 
+Hotspots Options:
+  --format, -f    Output format: text (default), json, markdown
+  --top, -t       Number of hotspots to show (default: 10)
+  --file, -o      Output to file instead of stdout
+
 Examples:
   codemetrics analyze ./src
   codemetrics analyze -f json -v ./src
   codemetrics violations --cc-threshold 15 ./src
-  codemetrics analyze -f markdown ./src > report.md`)
+  codemetrics analyze -f markdown ./src > report.md
+  codemetrics hotspots ./src
+  codemetrics hotspots --top 20 -f json ./src`)
 }
 
 func cmdAnalyze(args []string) {
@@ -270,5 +280,79 @@ func cmdViolations(args []string) {
 
 	if len(violations) > 0 {
 		os.Exit(1) // non-zero exit if violations found
+	}
+}
+
+func cmdHotspots(args []string) {
+	format := reporter.FormatText
+	topN := 10
+	outputFile := ""
+	paths := []string{}
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--format", "-f":
+			if i+1 < len(args) {
+				i++
+				format = reporter.Format(args[i])
+			}
+		case "--top", "-t":
+			if i+1 < len(args) {
+				i++
+				fmt.Sscanf(args[i], "%d", &topN)
+			}
+		case "--file", "-o":
+			if i+1 < len(args) {
+				i++
+				outputFile = args[i]
+			}
+		default:
+			paths = append(paths, args[i])
+		}
+	}
+
+	if len(paths) == 0 {
+		paths = []string{"."}
+	}
+
+	// Open output
+	var w *os.File
+	var err error
+	if outputFile != "" {
+		w, err = os.Create(outputFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
+			os.Exit(1)
+		}
+		defer w.Close()
+	} else {
+		w = os.Stdout
+	}
+
+	a := analyzer.New()
+	r := reporter.New(w, format, false)
+
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		if !info.IsDir() {
+			fmt.Fprintf(os.Stderr, "Error: hotspots requires a directory path, got file: %s\n", path)
+			os.Exit(1)
+		}
+
+		hr, err := a.FindHotspots(path, topN)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding hotspots in %s: %v\n", path, err)
+			os.Exit(1)
+		}
+
+		if err := r.WriteHotspots(hr); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing report: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }

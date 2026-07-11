@@ -67,6 +67,18 @@ func (r *Report) WriteViolations(violations []models.ComplexityViolation) error 
 	}
 }
 
+// WriteHotspots writes hotspot detection results
+func (r *Report) WriteHotspots(hr *models.HotspotReport) error {
+	switch r.format {
+	case FormatJSON:
+		return r.writeJSON(hr)
+	case FormatMarkdown:
+		return r.writeHotspotsMarkdown(hr)
+	default:
+		return r.writeHotspotsText(hr)
+	}
+}
+
 func (r *Report) writeJSON(data interface{}) error {
 	enc := json.NewEncoder(r.writer)
 	enc.SetIndent("", "  ")
@@ -222,6 +234,55 @@ func (r *Report) writeViolationsMarkdown(violations []models.ComplexityViolation
 	for _, v := range violations {
 		fmt.Fprintf(r.writer, "| %s | %s | %d | %d | %s |\n",
 			v.FilePath, v.FuncName, v.Cyclomatic, v.Cognitive, v.Severity)
+	}
+
+	return nil
+}
+
+func (r *Report) writeHotspotsText(hr *models.HotspotReport) error {
+	if len(hr.Hotspots) == 0 {
+		fmt.Fprintln(r.writer, "No hotspots found.")
+		return nil
+	}
+
+	w := tabwriter.NewWriter(r.writer, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w, "═══ Hotspot Detection ═══\n\n")
+	fmt.Fprintf(w, "Root: %s\n", hr.RootPath)
+	fmt.Fprintf(w, "Files: %d  Functions: %d  Showing top %d\n\n", hr.TotalFiles, hr.TotalFuncs, hr.TopCount)
+
+	fmt.Fprintf(w, "  %-40s %-30s %s %s %s %s %s\n", "File", "Function", "Score", "CC", "Cog", "Nest", "Lines")
+	fmt.Fprintf(w, "  %s %s %s %s %s %s %s\n",
+		strings.Repeat("─", 40),
+		strings.Repeat("─", 30),
+		strings.Repeat("─", 5),
+		strings.Repeat("─", 4),
+		strings.Repeat("─", 4),
+		strings.Repeat("─", 4),
+		strings.Repeat("─", 5))
+
+	for _, h := range hr.Hotspots {
+		fmt.Fprintf(w, "  %-40s %-30s %5.2f %4d %4d %4d %5d\n",
+			h.FilePath, h.FuncName, h.CompositeScore, h.Cyclomatic, h.Cognitive, h.NestingDepth, h.LinesOfCode)
+	}
+
+	return w.Flush()
+}
+
+func (r *Report) writeHotspotsMarkdown(hr *models.HotspotReport) error {
+	if len(hr.Hotspots) == 0 {
+		fmt.Fprintln(r.writer, "No hotspots found.")
+		return nil
+	}
+
+	fmt.Fprintf(r.writer, "# Hotspot Detection\n\n")
+	fmt.Fprintf(r.writer, "**Root:** `%s`  \n", hr.RootPath)
+	fmt.Fprintf(r.writer, "**Files:** %d  **Functions:** %d  **Top:** %d\n\n", hr.TotalFiles, hr.TotalFuncs, hr.TopCount)
+
+	fmt.Fprintf(r.writer, "| File | Function | Score | CC | Cognitive | Nesting | Lines |\n")
+	fmt.Fprintf(r.writer, "|------|----------|-------|----|-----------|---------|-------|\n")
+	for _, h := range hr.Hotspots {
+		fmt.Fprintf(r.writer, "| %s | %s | %.2f | %d | %d | %d | %d |\n",
+			h.FilePath, h.FuncName, h.CompositeScore, h.Cyclomatic, h.Cognitive, h.NestingDepth, h.LinesOfCode)
 	}
 
 	return nil

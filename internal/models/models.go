@@ -16,13 +16,13 @@ const (
 
 // FileMetrics holds metrics for a single file
 type FileMetrics struct {
-	FilePath        string       `json:"file_path"`
-	Language        Language     `json:"language"`
-	LinesOfCode     LOC          `json:"loc"`
+	FilePath        string        `json:"file_path"`
+	Language        Language      `json:"language"`
+	LinesOfCode     LOC           `json:"loc"`
 	Functions       []FuncMetrics `json:"functions"`
-	TotalComplexity Complexity   `json:"total_complexity"`
-	MaxNestingDepth int          `json:"max_nesting_depth"`
-	AnalyzedAt      time.Time    `json:"analyzed_at"`
+	TotalComplexity Complexity    `json:"total_complexity"`
+	MaxNestingDepth int           `json:"max_nesting_depth"`
+	AnalyzedAt      time.Time     `json:"analyzed_at"`
 }
 
 // LOC holds lines-of-code breakdown
@@ -35,14 +35,14 @@ type LOC struct {
 
 // FuncMetrics holds metrics for a single function
 type FuncMetrics struct {
-	Name             string     `json:"name"`
-	Line             int        `json:"line"`
-	EndLine          int        `json:"end_line"`
-	LinesOfCode      int        `json:"lines_of_code"`
-	ParameterCount   int        `json:"parameter_count"`
-	NestingDepth     int        `json:"nesting_depth"`
-	Cyclomatic       int        `json:"cyclomatic_complexity"`
-	Cognitive        int        `json:"cognitive_complexity"`
+	Name           string `json:"name"`
+	Line           int    `json:"line"`
+	EndLine        int    `json:"end_line"`
+	LinesOfCode    int    `json:"lines_of_code"`
+	ParameterCount int    `json:"parameter_count"`
+	NestingDepth   int    `json:"nesting_depth"`
+	Cyclomatic     int    `json:"cyclomatic_complexity"`
+	Cognitive      int    `json:"cognitive_complexity"`
 }
 
 // Complexity holds aggregate complexity metrics
@@ -65,12 +65,12 @@ type ProjectMetrics struct {
 
 // Summary provides a high-level summary
 type Summary struct {
-	AvgCyclomatic float64 `json:"avg_cyclomatic_complexity"`
-	AvgCognitive  float64 `json:"avg_cognitive_complexity"`
-	AvgFuncLength float64 `json:"avg_function_length"`
-	MaxFuncLength int     `json:"max_function_length"`
-	TotalFunctions int    `json:"total_functions"`
-	ComplexFiles  int     `json:"complex_files"` // files with CC > 10
+	AvgCyclomatic  float64 `json:"avg_cyclomatic_complexity"`
+	AvgCognitive   float64 `json:"avg_cognitive_complexity"`
+	AvgFuncLength  float64 `json:"avg_function_length"`
+	MaxFuncLength  int     `json:"max_function_length"`
+	TotalFunctions int     `json:"total_functions"`
+	ComplexFiles   int     `json:"complex_files"` // files with CC > 10
 }
 
 // Severity represents the severity of a complexity finding
